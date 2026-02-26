@@ -63,7 +63,7 @@ export function toISODate(d: Date): string {
 
 /** Returns the 5 Mon-Fri dates for a given week start (Monday) */
 export function getWeekDates(weekStart: Date): Date[] {
-  return Array.from({ length: 5 }, (_, i) => {
+  return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
     d.setDate(d.getDate() + i)
     return d

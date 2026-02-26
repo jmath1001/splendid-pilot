@@ -25,12 +25,12 @@ import type { PrefilledSlot, BookingConfirmData } from '@/components/BookingForm
 const isTutorAvailable = (tutor: Tutor, time: string) =>
   tutor.availabilityBlocks.includes(time);
 
-const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 /** Format week range e.g. "Feb 24 – Feb 28, 2026" */
 function formatWeekRange(weekStart: Date): string {
   const end = new Date(weekStart);
-  end.setDate(end.getDate() + 4);
+  end.setDate(end.getDate() + 6); // Changed from 4 to 6
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
   const s = weekStart.toLocaleDateString('en-US', opts);
   const e = end.toLocaleDateString('en-US', { ...opts, year: 'numeric' });
@@ -106,7 +106,7 @@ export default function MasterDeployment() {
         date: (data.slot as any).date,
         time: data.slot.time,
         student: data.student,
-        topic: data.student.subject,
+        topic: data.subject || data.student.subject,
         recurring: data.recurring,
         recurringWeeks: data.recurringWeeks,
       });
@@ -338,7 +338,7 @@ export default function MasterDeployment() {
                               // available cells stay white — dashed border signals availability
 
                               return (
-                                <td key={time} className="p-1.5 align-top h-[110px]" style={{ background: cellBg, borderRight: '1px solid #e2e8f0' }}>
+                                <td key={time} className="p-2 align-top h-[160px]" style={{ background: cellBg, borderRight: '1px solid #e2e8f0' }}>
                                   <div className="flex flex-col gap-1.5 h-full">
                                     {hasStudents ? (
                                       <>

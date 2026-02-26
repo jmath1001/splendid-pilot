@@ -19,6 +19,7 @@ export interface BookingConfirmData {
   slot: PrefilledSlot;
   recurring: boolean;
   recurringWeeks: number;
+  subject: string;
 }
 
 export interface BookingFormProps {
@@ -45,6 +46,7 @@ export function BookingForm({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [subject, setSubject] = useState('');
   const [recurring, setRecurring] = useState(false);
   const [recurringWeeks, setRecurringWeeks] = useState(4);
   const [selectedSlot, setSelectedSlot] = useState<any>(prefilledSlot || null);
@@ -60,6 +62,7 @@ export function BookingForm({
   const selectStudent = (student: any) => {
     setSelectedStudent(student);
     setSearchQuery(student.name);
+    setSubject(student.subject || '');
     setShowSuggestions(false);
   };
 
@@ -152,6 +155,22 @@ export function BookingForm({
               <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider mb-1.5">✓ Selected</p>
               <p className="text-sm font-black text-white mb-0.5">{selectedStudent.name}</p>
               <p className="text-[9px] font-bold text-slate-400 uppercase">{selectedStudent.subject} · {selectedStudent.hoursLeft}h remaining</p>
+            </div>
+          )}
+
+          {/* Subject input */}
+          {selectedStudent && (
+            <div className="mb-5">
+              <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider mb-2 block">Subject / Topic</label>
+              <input
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                placeholder="e.g. Calculus, Essay Writing..."
+                className="w-full py-3 px-4 rounded-xl text-sm font-bold text-white placeholder-slate-600 focus:outline-none"
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+                onFocus={e => (e.currentTarget.style.borderColor = 'rgba(16,185,129,0.6)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')}
+              />
             </div>
           )}
 
@@ -303,7 +322,7 @@ export function BookingForm({
 
               <button
                 disabled={!canConfirm}
-                onClick={() => onConfirm({ student: selectedStudent, slot: prefilledSlot, recurring, recurringWeeks })}
+                onClick={() => onConfirm({ student: selectedStudent, slot: prefilledSlot, recurring, recurringWeeks, subject: subject || selectedStudent.subject })}
                 className="mt-4 w-full py-4 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all active:scale-95"
                 style={canConfirm ? {
                   background: 'linear-gradient(135deg, #10b981, #059669)',
@@ -392,7 +411,7 @@ export function BookingForm({
                     )}
                   </div>
                   <button
-                    onClick={() => onConfirm({ student: selectedStudent, slot: selectedSlot, recurring, recurringWeeks })}
+                    onClick={() => onConfirm({ student: selectedStudent, slot: selectedSlot, recurring, recurringWeeks, subject: subject || selectedStudent.subject })}
                     className="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-white transition-all active:scale-95"
                     style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 0 16px rgba(16,185,129,0.4)' }}
                   >
