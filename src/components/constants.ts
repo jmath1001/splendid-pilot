@@ -6,12 +6,12 @@ export const TIME_SLOTS = [
   '17:00', '17:30',
   '18:00', '18:30',
   '19:00', '19:30',
-  '20:00', '20:30'
+  '20:00',
 ]
 
-export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
-export const MAX_CAPACITY = 2
+export const MAX_CAPACITY = 1  // 1-on-1 private sessions only
 
 /** Display a 24hr time string as 12hr e.g. '14:30' → '2:30 PM' */
 export function formatTime(t: string): string {
