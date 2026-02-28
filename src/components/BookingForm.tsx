@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useMemo } from 'react';
-import { Search, X, Repeat, Check, PlusCircle, Users } from "lucide-react";
+import { Search, X, Repeat, Check, Calendar, BookOpen, Clock, User } from "lucide-react";
 
 import { DAYS, formatTime } from '@/components/constants';
 
@@ -33,7 +33,7 @@ export interface BookingFormProps {
   sessions?: any[]; // to detect who's already scheduled this week
 }
 
-// ─── StudentRow ──────────────────────────────────────────────────────────────
+// ─── StudentRow Component ─────────────────────────────────────────────────────
 
 function StudentRow({ student, selected, onSelect, isUnassigned }: {
   student: any;
@@ -44,32 +44,28 @@ function StudentRow({ student, selected, onSelect, isUnassigned }: {
   return (
     <button
       onClick={() => onSelect(student)}
-      className="w-full p-2.5 text-left transition-all flex items-center gap-2.5"
-      style={{
-        borderBottom: '1px solid #f0ece8',
-        background: selected ? '#ede9fe' : 'transparent',
-      }}
-      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#faf9f7'; }}
-      onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
+      className="w-full p-3 text-left transition-all flex items-center gap-3 border-b border-[#f0ece8]"
+      style={{ background: selected ? '#ede9fe' : 'transparent' }}
     >
-      <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold" style={{ background: selected ? '#6d28d9' : '#f0ece8', color: selected ? 'white' : '#78716c' }}>
+      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold" 
+           style={{ background: selected ? '#6d28d9' : '#f0ece8', color: selected ? 'white' : '#78716c' }}>
         {student.name.charAt(0)}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-sm font-medium leading-none truncate" style={{ color: '#1c1917' }}>{student.name}</p>
-          {isUnassigned && (
-            <span className="shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }}>New</span>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold truncate text-[#1c1917]">{student.name}</p>
+          {isUnassigned && !selected && (
+            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fcd34d]">NEW</span>
           )}
         </div>
-        <p className="text-xs mt-0.5" style={{ color: '#a8a29e' }}>{student.subject}</p>
+        <p className="text-[10px] text-[#a8a29e] uppercase font-medium">Grade {student.grade || 'N/A'}</p>
       </div>
-      {selected && <Check size={12} style={{ color: '#6d28d9' }} strokeWidth={2.5} className="shrink-0" />}
+      {selected && <Check size={14} className="text-[#6d28d9]" strokeWidth={3} />}
     </button>
   );
 }
 
-// ─── BookingForm ──────────────────────────────────────────────────────────────
+// ─── Main BookingForm ─────────────────────────────────────────────────────────
 
 export function BookingForm({
   prefilledSlot,
@@ -83,22 +79,12 @@ export function BookingForm({
 }: BookingFormProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [studentMode, setStudentMode] = useState<'search' | 'all'>('search');
   const [subject, setSubject] = useState('');
   const [recurring, setRecurring] = useState(false);
   const [recurringWeeks, setRecurringWeeks] = useState(4);
   const [selectedSlot, setSelectedSlot] = useState<any>(prefilledSlot || null);
 
-  const filteredStudents = useMemo(() => {
-    if (!searchQuery.trim()) return studentDatabase.slice(0, 8);
-    return studentDatabase.filter(student =>
-      student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.subject.toLowerCase().includes(searchQuery.toLowerCase())
-    ).slice(0, 8);
-  }, [searchQuery, studentDatabase]);
-
-  // Student IDs that already have at least one session this week
+  // 1. Logic: Who is already on the schedule this week?
   const assignedStudentIds = useMemo(() => {
     const ids = new Set<string>();
     sessions.forEach((session: any) => {
@@ -107,398 +93,241 @@ export function BookingForm({
     return ids;
   }, [sessions]);
 
+  // 2. Logic: Filter and Sort Students (Unscheduled at top)
+  const filteredStudents = useMemo(() => {
+    const filtered = studentDatabase.filter(s => 
+      s.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return filtered.sort((a, b) => {
+      const aU = !assignedStudentIds.has(a.id);
+      const bU = !assignedStudentIds.has(b.id);
+      if (aU && !bU) return -1;
+      if (!aU && bU) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [searchQuery, studentDatabase, assignedStudentIds]);
+
+  // 3. Logic: Group Availability by Day Name
+  const slotsByDay = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    allAvailableSeats.forEach(slot => {
+      if (!groups[slot.dayName]) groups[slot.dayName] = [];
+      groups[slot.dayName].push(slot);
+    });
+    return groups;
+  }, [allAvailableSeats]);
+
   const selectStudent = (student: any) => {
     setSelectedStudent(student);
-    setSearchQuery(student.name);
     setSubject(student.subject || '');
-    setShowSuggestions(false);
   };
 
-  const canConfirm = selectedStudent && selectedSlot;
+  const canConfirm = selectedStudent && (selectedSlot || prefilledSlot);
 
   return (
-    <div
-      className="w-full max-w-4xl rounded-2xl flex flex-col md:flex-row overflow-hidden"
-      style={{
-        background: 'white',
-        border: '1px solid #e7e3dd',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
-        maxHeight: '90vh',
-      }}
-    >
-      {/* ── LEFT PANEL ── */}
-      <div
-        className="w-full md:w-64 p-5 md:p-6 flex flex-col justify-between border-b md:border-b-0 md:border-r overflow-y-auto"
-        style={{ background: '#faf9f7', borderColor: '#e7e3dd', minWidth: 240 }}
-      >
-        <div>
-          {/* Title */}
-          <h3 className="text-xl font-bold tracking-tight mb-0.5" style={{ color: '#1c1917' }}>Book Session</h3>
-          <p className="text-xs mb-5" style={{ color: '#a8a29e' }}>Schedule a student</p>
+    <div className="w-full max-w-5xl bg-white rounded-2xl flex flex-col md:flex-row overflow-hidden border border-[#e7e3dd] shadow-2xl" style={{ maxHeight: '85vh' }}>
+      
+      {/* ── LEFT PANEL: STUDENT SELECTION ── */}
+      <div className="w-full md:w-72 bg-[#faf9f7] border-r border-[#e7e3dd] flex flex-col">
+        <div className="p-5 bg-white border-b border-[#e7e3dd]">
+          <h3 className="text-lg font-bold text-[#1c1917] mb-1">Book Session</h3>
+          <p className="text-xs text-[#a8a29e] mb-4">Select a student to schedule</p>
+          
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+            <input 
+              className="w-full pl-9 pr-3 py-2.5 bg-[#f0ece8]/50 border-none rounded-xl text-sm focus:ring-2 focus:ring-[#6d28d9] outline-none"
+              placeholder="Search by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
 
-          {/* Prefilled slot badge */}
-          {prefilledSlot && (
-            <div className="mb-4 p-3 rounded-xl" style={{ background: '#ede9fe', border: '1px solid #c4b5fd' }}>
-              <p className="text-[9px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#7c3aed' }}>Slot</p>
-              <p className="text-sm font-semibold leading-none mb-1" style={{ color: '#1c1917' }}>{prefilledSlot.tutor.name}</p>
-              <p className="text-xs" style={{ color: '#6d28d9' }}>{prefilledSlot.dayName} · {new Date(prefilledSlot.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {formatTime(prefilledSlot.time)}</p>
-            </div>
+        <div className="flex-1 overflow-y-auto">
+          {filteredStudents.length > 0 ? (
+            filteredStudents.map(student => (
+              <StudentRow 
+                key={student.id} 
+                student={student} 
+                selected={selectedStudent?.id === student.id} 
+                onSelect={selectStudent}
+                isUnassigned={!assignedStudentIds.has(student.id)}
+              />
+            ))
+          ) : (
+            <div className="p-10 text-center text-xs text-[#a8a29e] italic">No students found</div>
           )}
+        </div>
 
-          {/* Student picker — tabs: Search / All */}
-          <div className="mb-5">
-            {/* Tab row */}
-            <div className="flex gap-1.5 mb-3">
-              {([['search', 'Search'], ['all', 'All Students']] as const).map(([mode, label]) => (
-                <button
-                  key={mode}
-                  onClick={() => setStudentMode(mode)}
-                  className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
-                  style={studentMode === mode ? {
-                    background: '#6d28d9', color: 'white', border: '1px solid #6d28d9',
-                  } : {
-                    background: 'white', color: '#78716c', border: '1px solid #e7e3dd',
-                  }}
-                >{label}</button>
-              ))}
+        {/* Selected Student Context */}
+        {selectedStudent && (
+          <div className="p-4 bg-white border-t border-[#e7e3dd] space-y-3">
+            <div>
+              <label className="text-[10px] font-bold text-[#a8a29e] uppercase tracking-widest mb-1.5 block">Session Topic</label>
+              <input 
+                className="w-full px-3 py-2 rounded-lg text-sm border border-[#e7e3dd] focus:border-[#6d28d9] outline-none"
+                placeholder="e.g. Geometry, SAT Prep"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
             </div>
+          </div>
+        )}
+      </div>
 
-            {studentMode === 'search' ? (
-              /* ── Search mode ── */
-              <div className="relative">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => { setSearchQuery(e.target.value); if (!e.target.value) setSelectedStudent(null); }}
-                    placeholder="Name or subject..."
-                    className="w-full py-2.5 px-4 rounded-xl text-sm focus:outline-none"
-                    style={{ background: 'white', border: '1px solid #e7e3dd', color: '#1c1917' }}
-                    onFocus={e => e.currentTarget.style.borderColor = '#6d28d9'}
-                    onBlur={e => e.currentTarget.style.borderColor = '#e7e3dd'}
-                  />
-                  <Search size={14} className="absolute right-3 top-3 text-slate-500" />
-                </div>
-                {filteredStudents.length > 0 && (
-                  <div className="mt-1.5 rounded-xl overflow-hidden" style={{ background: 'white', border: '1px solid #e7e3dd', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-                    {filteredStudents.map(student => (
-                      <StudentRow key={student.id} student={student} selected={selectedStudent?.id === student.id} onSelect={selectStudent} isUnassigned={!assignedStudentIds.has(student.id)} />
-                    ))}
-                  </div>
-                )}
-                {searchQuery && filteredStudents.length === 0 && (
-                  <p className="text-xs italic mt-2 text-center" style={{ color: '#a8a29e' }}>No students found</p>
-                )}
-              </div>
-            ) : (
-              /* ── All Students mode ── */
-              <div className="rounded-xl overflow-hidden max-h-[240px] overflow-y-auto" style={{ background: 'white', border: '1px solid #e7e3dd' }}>
-                {studentDatabase.length === 0 ? (
-                  <p className="text-xs italic p-4 text-center" style={{ color: '#a8a29e' }}>No students in database</p>
-                ) : studentDatabase
-                  .sort((a, b) => {
-                    // Unscheduled first
-                    const aU = !assignedStudentIds.has(a.id);
-                    const bU = !assignedStudentIds.has(b.id);
-                    if (aU && !bU) return -1;
-                    if (!aU && bU) return 1;
-                    return a.name.localeCompare(b.name);
-                  })
-                  .map(student => (
-                  <StudentRow key={student.id} student={student} selected={selectedStudent?.id === student.id} onSelect={selectStudent} isUnassigned={!assignedStudentIds.has(student.id)} />
+      {/* ── RIGHT PANEL: DAY-PARTITIONED SLOTS ── */}
+      <div className="flex-1 flex flex-col bg-white overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#f0ece8] flex justify-between items-center sticky top-0 bg-white z-10">
+          <div className="flex items-center gap-4">
+            <h4 className="font-bold text-[#1c1917]">
+              {prefilledSlot ? 'Confirm Details' : 'Available Openings'}
+            </h4>
+            {!prefilledSlot && (
+              <div className="flex gap-1 bg-[#f0ece8] p-1 rounded-lg">
+                {['math', 'english'].map(cat => (
+                  <button 
+                    key={cat}
+                    onClick={() => setEnrollCat(cat)}
+                    className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${enrollCat === cat ? 'bg-white text-[#6d28d9] shadow-sm' : 'text-[#78716c]'}`}
+                  >
+                    {cat}
+                  </button>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Selected student confirmation */}
-          {selectedStudent && (
-            <div className="mb-4 p-3 rounded-xl" style={{ background: '#d1fae5', border: '1px solid #6ee7b7' }}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Check size={11} style={{ color: '#059669' }} strokeWidth={3} />
-                <p className="text-[10px] font-semibold" style={{ color: '#059669' }}>Selected</p>
-              </div>
-              <p className="text-sm font-semibold" style={{ color: '#1c1917' }}>{selectedStudent.name}</p>
-              <p className="text-xs" style={{ color: '#64748b' }}>{selectedStudent.subject}</p>
-            </div>
-          )}
-
-          {/* Subject input */}
-          {selectedStudent && (
-            <div className="mb-5">
-              <label className="text-xs font-medium mb-1.5 block" style={{ color: '#78716c' }}>Topic / Subject</label>
-              <input
-                value={subject}
-                onChange={e => setSubject(e.target.value)}
-                placeholder="e.g. Calculus, Essay Writing..."
-                className="w-full py-2.5 px-3 rounded-xl text-sm focus:outline-none"
-                style={{ background: 'white', border: '1px solid #e7e3dd', color: '#1c1917' }}
-                onFocus={e => e.currentTarget.style.borderColor = '#6d28d9'}
-                onBlur={e => e.currentTarget.style.borderColor = '#e7e3dd'}
-              />
-            </div>
-          )}
-
-          {/* Recurring toggle */}
-          <div className="mb-4 p-3.5 rounded-xl" style={{ background: 'white', border: '1px solid #e7e3dd' }}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Repeat size={13} style={{ color: recurring ? '#6d28d9' : '#a8a29e' }} />
-                <span className="text-sm font-medium" style={{ color: '#1c1917' }}>Recurring</span>
-              </div>
-              <button onClick={() => setRecurring(!recurring)}
-                className="relative w-9 h-5 rounded-full transition-all"
-                style={{ background: recurring ? '#6d28d9' : '#e7e3dd' }}
-              >
-                <span className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform"
-                  style={{ transform: recurring ? 'translateX(16px)' : 'translateX(0)' }}
-                />
-              </button>
-            </div>
-            {recurring && (
-              <div className="mt-3">
-                <p className="text-xs font-medium mb-2" style={{ color: '#78716c' }}>Repeat for</p>
-                <div className="flex gap-1.5">
-                  {[2, 4, 6, 8].map(w => (
-                    <button key={w} onClick={() => setRecurringWeeks(w)}
-                      className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                      style={recurringWeeks === w ? {
-                        background: '#6d28d9', color: 'white', border: '1px solid #6d28d9',
-                      } : {
-                        background: '#f9f7f4', color: '#78716c', border: '1px solid #e7e3dd',
-                      }}
-                    >{w}wk</button>
-                  ))}
-                </div>
-                <p className="text-xs mt-2" style={{ color: '#a8a29e' }}>
-                  Every {selectedSlot ? DAYS[selectedSlot.dayNum - 1] || selectedSlot.dayName : 'selected day'} for {recurringWeeks} weeks
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Category filter */}
-          {!prefilledSlot && (
-            <div className="flex md:flex-col gap-2">
-              {[
-                { key: 'math', label: 'Math / Science' },
-                { key: 'english', label: 'English / Hist' },
-              ].map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setEnrollCat(key)}
-                  className="flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all"
-                  style={enrollCat === key ? {
-                    background: '#6d28d9', color: 'white', border: '1px solid #6d28d9',
-                  } : {
-                    background: 'white', color: '#78716c', border: '1px solid #e7e3dd',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
+          <button onClick={onCancel} className="p-1.5 hover:bg-[#f9f7f4] rounded-full text-[#a8a29e] transition-colors"><X size={20}/></button>
         </div>
 
-        {/* Close */}
-        <button
-          onClick={onCancel}
-          className="py-2.5 rounded-xl text-xs font-medium mt-3 md:mt-0 transition-all"
-          style={{ background: '#f9f7f4', color: '#78716c', border: '1px solid #e7e3dd' }}
-          onMouseEnter={e => e.currentTarget.style.background = '#f0ece8'}
-          onMouseLeave={e => e.currentTarget.style.background = '#f9f7f4'}
-        >
-          Close
-        </button>
-      </div>
-
-      {/* ── RIGHT PANEL ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #f0ece8' }}>
-          <h4 className="text-base font-semibold" style={{ color: '#1c1917' }}>
-            {prefilledSlot ? 'Confirm Booking' : 'Available Slots'}
-          </h4>
-          {!prefilledSlot && (
-            <span className="text-xs px-2.5 py-1 rounded-full" style={{ background: '#f9f7f4', color: '#a8a29e', border: '1px solid #e7e3dd' }}>
-              Mon–Fri
-            </span>
-          )}
-        </div>
-
-        <div className="flex-1 p-4 overflow-y-auto space-y-2" style={{ background: 'white' }}>
-
+        <div className="flex-1 overflow-y-auto p-6">
           {prefilledSlot ? (
-            <div>
-              <div
-                className="p-5 md:p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-0"
-                style={{
-                  background: selectedSlot ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${selectedSlot ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.08)'}`,
-                  boxShadow: selectedSlot ? '0 0 20px rgba(16,185,129,0.1)' : 'none',
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-xl flex flex-col items-center justify-center shrink-0" style={{ background: '#ede9fe', border: '1px solid #c4b5fd' }}>
-                    <span className="text-[9px] font-semibold leading-none mb-0.5" style={{ color: '#7c3aed' }}>{prefilledSlot.dayName.substring(0, 3)}</span>
-                    <span className="text-sm font-bold leading-none" style={{ color: '#6d28d9' }}>{formatTime(prefilledSlot.time).replace(' AM','a').replace(' PM','p')}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold leading-none mb-1" style={{ color: '#1c1917' }}>{prefilledSlot.tutor.name}</p>
-                    <span className="text-xs" style={{ color: '#a8a29e' }}>{prefilledSlot.tutor.subjects.join(' · ')}</span>
-                  </div>
+            /* Prefilled Mode */
+            <div className="max-w-md mx-auto py-10">
+              <div className="p-6 rounded-2xl border-2 border-[#6d28d9] bg-[#faf9ff] flex items-center gap-5">
+                <div className="w-16 h-16 rounded-2xl bg-[#6d28d9] flex flex-col items-center justify-center text-white">
+                  <span className="text-[10px] font-bold uppercase opacity-80">{prefilledSlot.dayName.slice(0,3)}</span>
+                  <span className="text-lg font-black">{formatTime(prefilledSlot.time).split(' ')[0]}</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg" style={{ background: '#d1fae5', border: '1px solid #6ee7b7' }}>
-                  <Check size={12} style={{ color: '#059669' }} strokeWidth={3} />
-                  <span className="text-xs font-semibold" style={{ color: '#065f46' }}>Ready</span>
+                <div>
+                  <p className="text-lg font-bold text-[#1c1917]">{prefilledSlot.tutor.name}</p>
+                  <p className="text-sm text-[#6d28d9] font-medium">{prefilledSlot.dayName} · {formatTime(prefilledSlot.time)}</p>
                 </div>
               </div>
-
-              {canConfirm && (
-                <div className="mt-3 p-3.5 rounded-xl" style={{ background: '#f9f7f4', border: '1px solid #e7e3dd' }}>
-                  <p className="text-xs font-medium mb-1.5" style={{ color: '#a8a29e' }}>Summary</p>
-                  <p className="text-sm font-semibold mb-0.5" style={{ color: '#1c1917' }}>{selectedStudent.name}</p>
-                  <p className="text-xs" style={{ color: '#78716c' }}>{prefilledSlot.dayName} · {formatTime(prefilledSlot.time)} · {prefilledSlot.tutor.name}</p>
-                  {recurring && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2" style={{ borderTop: '1px solid #e7e3dd' }}>
-                      <Repeat size={10} style={{ color: '#6d28d9' }} />
-                      <span className="text-xs font-medium" style={{ color: '#6d28d9' }}>Recurring · {recurringWeeks} weeks</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <button
-                disabled={!canConfirm}
-                onClick={() => onConfirm({ student: selectedStudent, slot: prefilledSlot, recurring, recurringWeeks, subject: subject || selectedStudent.subject })}
-                className="mt-3 w-full py-3 rounded-xl text-sm font-semibold transition-all active:scale-95"
-                style={canConfirm ? {
-                  background: '#6d28d9', color: 'white', border: '1px solid #6d28d9',
-                  boxShadow: '0 2px 8px rgba(109,40,217,0.3)',
-                } : {
-                  background: '#f9f7f4', color: '#c4b9b2', border: '1px solid #e7e3dd', cursor: 'not-allowed',
-                }}
-              >
-                {canConfirm ? `Confirm Booking${recurring ? ` · ${recurringWeeks} weeks` : ''}` : 'Search & select a student first'}
-              </button>
             </div>
-
           ) : (
-            allAvailableSeats.length > 0 ? allAvailableSeats.map((slot, i) => {
-              const isSelected = selectedSlot?.tutor.id === slot.tutor.id && selectedSlot?.dayName === slot.dayName && selectedSlot?.time === slot.time;
-              return (
-                <div
-                  key={i}
-                  onClick={() => setSelectedSlot(slot)}
-                  className="p-4 md:p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-0 cursor-pointer transition-all"
-                  style={{
-                    background: isSelected ? '#ede9fe' : 'white',
-                    border: `1px solid ${isSelected ? '#c4b5fd' : '#f0ece8'}`,
-                  }}
-                  onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = '#c4b5fd'; e.currentTarget.style.background = '#faf9ff'; }}}
-                  onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = '#f0ece8'; e.currentTarget.style.background = 'white'; }}}
-                >
-                  <div className="flex items-center gap-3 md:gap-5">
-                    <div
-                      className="w-14 h-14 md:w-16 md:h-16 rounded-xl flex flex-col items-center justify-center text-white shrink-0 transition-all"
-                      style={isSelected ? {
-                        background: '#6d28d9',
-                      } : {
-                        background: '#f9f7f4', border: '1px solid #e7e3dd',
-                      }}
-                    >
-                      <span className="text-[9px] font-semibold leading-none mb-0.5" style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : '#a8a29e' }}>{slot.dayName.substring(0, 3)}</span>
-                      <span className="text-sm font-bold leading-none" style={{ color: isSelected ? 'white' : '#1c1917' }}>{formatTime(slot.time).replace(' AM','a').replace(' PM','p')}</span>
+            /* Day-Partitioned Grid */
+            <div className="space-y-8">
+              {Object.entries(slotsByDay).length > 0 ? Object.entries(slotsByDay).map(([day, slots]) => (
+                <div key={day} className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="px-3 py-1 rounded-full bg-[#1c1917] text-white text-[10px] font-black uppercase tracking-widest">
+                      {day}
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold leading-none mb-1" style={{ color: '#1c1917' }}>{slot.tutor.name}</p>
-                      <p className="text-xs" style={{ color: '#a8a29e' }}>{slot.tutor.subjects[0]}</p>
-                    </div>
+                    <div className="h-[1px] flex-1 bg-[#f0ece8]"></div>
                   </div>
-                  {isSelected ? (
-                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg" style={{ background: '#d1fae5', border: '1px solid #6ee7b7' }}>
-                      <Check size={11} style={{ color: '#059669' }} strokeWidth={3} />
-                      <span className="text-xs font-semibold" style={{ color: '#065f46' }}>Selected</span>
-                    </div>
-                  ) : (
-                    <div className="px-2.5 py-1.5 rounded-lg text-xs font-medium" style={{ background: '#f9f7f4', color: '#a8a29e', border: '1px solid #e7e3dd' }}>
-                      Select
-                    </div>
-                  )}
-                </div>
-              );
-            }) : (
-              <div className="text-center py-12">
-                <p className="text-sm italic" style={{ color: '#c4b9b2' }}>No open slots this week</p>
-              </div>
-            )
-          )}
-
-          {!prefilledSlot && selectedSlot && (
-            <div className="sticky bottom-0 pt-3 pb-1" style={{ backdropFilter: 'blur(12px)' }}>
-              {canConfirm ? (
-                <div className="mb-2 p-3.5 rounded-xl flex items-center justify-between" style={{ background: 'white', border: '1px solid #e7e3dd', boxShadow: '0 -4px 16px rgba(0,0,0,0.06)' }}>
-                  <div>
-                    <p className="text-xs font-medium mb-0.5" style={{ color: '#a8a29e' }}>Booking</p>
-                    <p className="text-sm font-semibold" style={{ color: '#1c1917' }}>{selectedStudent.name} · {selectedSlot.dayName} {formatTime(selectedSlot.time)}</p>
-                    {recurring && (
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <Repeat size={9} style={{ color: '#6d28d9' }} />
-                        <span className="text-xs" style={{ color: '#6d28d9' }}>{recurringWeeks} weeks</span>
-                      </div>
-                    )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {slots.map((slot, idx) => {
+                      const isSelected = selectedSlot?.tutor.id === slot.tutor.id && selectedSlot?.time === slot.time && selectedSlot?.dayName === slot.dayName;
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => setSelectedSlot(slot)}
+                          className={`p-4 rounded-xl border-2 text-left transition-all relative ${
+                            isSelected ? 'border-[#6d28d9] bg-[#faf9ff] shadow-lg shadow-violet-100' : 'border-[#f0ece8] hover:border-[#c4b5fd]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Clock size={12} className={isSelected ? 'text-[#6d28d9]' : 'text-[#a8a29e]'} />
+                            <span className={`text-sm font-bold ${isSelected ? 'text-[#6d28d9]' : 'text-[#1c1917]'}`}>
+                              {formatTime(slot.time)}
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-[#1c1917] truncate">{slot.tutor.name}</p>
+                          <p className="text-[10px] text-[#a8a29e] uppercase mt-0.5">{slot.tutor.subjects[0]}</p>
+                          {isSelected && <div className="absolute top-2 right-2"><Check size={16} className="text-[#6d28d9]" strokeWidth={3} /></div>}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <button
-                    onClick={() => onConfirm({ student: selectedStudent, slot: selectedSlot, recurring, recurringWeeks, subject: subject || selectedStudent.subject })}
-                    className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all active:scale-95"
-                    style={{ background: '#6d28d9', boxShadow: '0 2px 8px rgba(109,40,217,0.3)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#5b21b6'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#6d28d9'}
-                  >
-                    Confirm
-                  </button>
                 </div>
-              ) : (
-                <div className="p-3 rounded-xl text-center" style={{ background: '#f9f7f4', border: '1px solid #e7e3dd' }}>
-                  <p className="text-xs" style={{ color: '#a8a29e' }}>Select a student to confirm</p>
+              )) : (
+                <div className="text-center py-20">
+                  <p className="text-sm text-[#a8a29e] italic">No available seats for {enrollCat} this week.</p>
                 </div>
               )}
             </div>
           )}
+        </div>
+
+        {/* ── FOOTER ACTIONS ── */}
+        <div className="p-6 border-t border-[#f0ece8] bg-[#faf9f7]">
+          <div className="flex flex-col md:flex-row items-center gap-4">
+            {/* Recurring Toggle */}
+            <div className="flex items-center gap-4 bg-white px-4 py-2.5 rounded-xl border border-[#e7e3dd] w-full md:w-auto">
+              <div className="flex items-center gap-2">
+                <Repeat size={14} className={recurring ? 'text-[#6d28d9]' : 'text-[#a8a29e]'} />
+                <span className="text-xs font-bold text-[#1c1917]">Recurring</span>
+              </div>
+              <div className="flex gap-1">
+                {[2, 4, 8].map(w => (
+                  <button 
+                    key={w}
+                    onClick={() => { setRecurring(true); setRecurringWeeks(w); }}
+                    className={`px-2 py-1 rounded text-[10px] font-bold border ${recurring && recurringWeeks === w ? 'bg-[#6d28d9] border-[#6d28d9] text-white' : 'bg-white border-[#e7e3dd] text-[#78716c]'}`}
+                  >
+                    {w}w
+                  </button>
+                ))}
+                {recurring && (
+                  <button onClick={() => setRecurring(false)} className="ml-1 p-1 text-[#ef4444] hover:bg-red-50 rounded"><X size={12}/></button>
+                )}
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              disabled={!canConfirm}
+              onClick={() => onConfirm({
+                student: selectedStudent,
+                slot: prefilledSlot || selectedSlot,
+                recurring,
+                recurringWeeks,
+                subject: subject || selectedStudent.subject
+              })}
+              className={`flex-1 py-4 rounded-xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98] shadow-xl ${
+                canConfirm 
+                  ? 'bg-[#6d28d9] text-white shadow-[#6d28d9]/20 hover:bg-[#5b21b6]' 
+                  : 'bg-[#e7e3dd] text-[#a8a29e] cursor-not-allowed shadow-none'
+              }`}
+            >
+              {canConfirm 
+                ? `Confirm Booking: ${selectedStudent.name}` 
+                : 'Select Student & Slot to Continue'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── BookingToast ─────────────────────────────────────────────────────────────
+// ─── BookingToast Component ───────────────────────────────────────────────────
 
-export interface BookingToastProps {
-  data: BookingConfirmData;
-  onClose: () => void;
-}
-
-export function BookingToast({ data, onClose }: BookingToastProps) {
+export function BookingToast({ data, onClose }: { data: BookingConfirmData; onClose: () => void }) {
   return (
-    <div
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 py-3.5 rounded-xl flex items-center gap-3 min-w-[280px]"
-      style={{
-        background: 'white',
-        border: '1px solid #e7e3dd',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-      }}
-    >
-      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: '#d1fae5' }}>
-        <Check size={15} style={{ color: '#059669' }} strokeWidth={3} />
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-white border border-[#e7e3dd] px-5 py-4 rounded-2xl flex items-center gap-4 shadow-2xl min-w-[320px]">
+      <div className="w-10 h-10 rounded-full bg-[#d1fae5] flex items-center justify-center text-[#059669]">
+        <Check size={20} strokeWidth={3} />
       </div>
       <div className="flex-1">
-        <p className="text-sm font-semibold leading-none mb-0.5" style={{ color: '#1c1917' }}>{data.student.name} booked</p>
-        <p className="text-xs" style={{ color: '#a8a29e' }}>
+        <p className="text-sm font-bold text-[#1c1917]">{data.student.name} Booked!</p>
+        <p className="text-[11px] text-[#a8a29e]">
           {data.slot.dayName} · {formatTime(data.slot.time)} · {data.slot.tutor.name}
-          {data.recurring ? ` · ${data.recurringWeeks}wk` : ''}
+          {data.recurring && ` · Repeated ${data.recurringWeeks} weeks`}
         </p>
       </div>
-      <button onClick={onClose} className="transition-colors ml-1" style={{ color: '#c4b9b2' }} onMouseEnter={e => (e.currentTarget as any).style.color='#78716c'} onMouseLeave={e => (e.currentTarget as any).style.color='#c4b9b2'}><X size={14} /></button>
+      <button onClick={onClose} className="text-[#a8a29e] hover:text-[#1c1917]"><X size={16} /></button>
     </div>
   );
 }
