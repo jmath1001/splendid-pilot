@@ -123,7 +123,6 @@ export default function StudentAdminPage() {
     await supabase.from('students').insert([{
       name: newStudent.name,
       grade: parseInt(newStudent.grade),
-      enrolled_sessions: {} // Initialize empty
     }]);
     
     setAdding(false);
